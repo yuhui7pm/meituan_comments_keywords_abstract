@@ -6,14 +6,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 import pymongo;
 
-#selenium设置代理
-proxy = '202.20.16.82:10152'
+
 chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument('--proxy-server=http://'+proxy)
 browser = webdriver.Chrome(options=chrome_options)
 #访问美团
-# browser.get('https://www.meituan.com/meishi/41007600/')
-# browser.implicitly_wait(10)#隐式等待
+browser.get('https://www.meituan.com/meishi/41007600/')
+browser.implicitly_wait(10)#隐式等待
 #商铺名字
 shopName = browser.find_element_by_class_name('details').find_element_by_class_name('name')
 shopName = shopName.text.replace('食品安全档案','')

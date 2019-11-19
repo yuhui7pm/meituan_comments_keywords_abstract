@@ -1,6 +1,8 @@
 import requests;               #模拟浏览器向服务器发出请求
 import urllib.parse;           #定义了url的标准接口，实现url的各种抽取
 from bs4 import BeautifulSoup; #html和xml的解析库，用于从网页中提取数据
+import pymongo                 #从mongoDB中读取数据
+import pandas as pd
 
 base_url ="https://www.meituan.com/meishi/api/poi/getMerchantComment?";
 headers = {
