@@ -41,7 +41,7 @@ from urllib.request import ProxyHandler,build_opener
 # print(response.read().decode('utf-8'))
 
 # https://www.kuaidaili.com/free/inha/
-proxy = '182.35.85.120:9999'
+proxy = '120.77.245.11:8080'
 chromeOptions = webdriver.ChromeOptions()
 chromeOptions.add_argument('--proxy-server=http://'+proxy)
 driver = webdriver.Chrome(options=chromeOptions)

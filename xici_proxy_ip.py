@@ -1,18 +1,22 @@
 #######################################
 ####  爬取"西刺免费代理"的"国内高匿代理IP"
 #######################################
+####  爬取的太频繁，被封ip了
+#######################################
 import requests
-import csv
+import csv  #不使用这个
 from bs4 import BeautifulSoup
 from telnetlib import Telnet  # 这是用来验证IP是否可用
+import pandas as pd           # 将数据保存到csv中
 
 class XiciProxy():
     def __init__(self):
-        self.baseUrl = 'https://www.xicidaili.com/nn/'
+        self.baseUrl = 'https://www.kuaidaili.com/free/inha/'
 
-    #获取西刺代理的有效ip,数目为4条
+    #获取西刺代理的有效ip,数目为num条
     def getDataList(self, num=2):
         print('爬取中...')
+        #将浏览器的response header和request header的复制过来
         headers = {
             'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36",
             'Host': 'www.xicidaili.com',
@@ -62,51 +66,26 @@ class XiciProxy():
         return self.li.select('td')[index].text.strip()
 
     #将结果ip保存到D:\python\meituan\output_file\proxyIp.txt中
-    def saveInTxt(self,d):
-        s = str(d)
+    def saveInTxt(self,data):
         txt = open('D:\python\meituan\output_file\proxyIp.txt', 'w')
-        txt.writelines(s)
+        txt.truncate()  #保存内容前先清空内容
+        for item in data:
+            itemStr = str(item)
+            txt.write(itemStr)
+            txt.write('\n')
         txt.close()
 
     #将结果保存到D:\python\meituan\output_file\proxyIp.csv中
-    # def saveInCsv(self,ableList):
-    #     csvFile = open('D:\python\meituan\output_file\proxyIp.csv', 'wb')
-    #     for value in ableList:
-    #         w = csv.DictWriter(csvFile, value.keys())
-    #         w.writerow(value)
-    #     csvFile.close()
+    def saveInCsv(self,ableList):
+        csvUrl = 'D:\python\meituan\output_file\proxyIp.csv'
+        pd.DataFrame(ableList).to_csv(csvUrl,encoding="utf-8-sig")  #避免保存的中文乱码
+        # csvFile = open('D:\python\meituan\output_file\proxyIp.csv', 'w')
+        # csvFile.truncate() #清空内容
+        # scvHeader = ['ip','anonymous','type','address','responseTime','finalVerifyTime']
+        # w = csv.DictWriter(csvFile, scvHeader)
+        # w.writeheader()
+        # w.writerows(ableList)
+        # csvFile.close()
 
 #调用方法,获取有效IP列表
 XiciProxy().getDataList()
-
-#     # def writeXls(self):
-#     #     wb = xlwt.Workbook(encoding='ascii')
-#     #     ws = wb.add_sheet('ip列表')
-#     #     ws.write(0, 0, 'IP地址')
-#     #     ws.write(0, 1, '服务器地址')
-#     #     ws.write(0, 2, '是否匿名')
-#     #     ws.write(0, 3, '类型')
-#     #     ws.write(0, 4, '验证时间')
-#     #     self.getDataList(60)  # 60为可用数据的长度
-#     #     print('爬取总数据{}条'.format(len(self.totalList)))
-#     #     print('{}条可用'.format(len(self.ableList)))
-#     #     print('{}条不可用'.format(len(self.unableList)))
-#     #     for i, data in enumerate(self.ableList):
-#     #         ws.write(i+1, 0, data['ip'])
-#     #         ws.write(i+1, 1, data['address'])
-#     #         ws.write(i+1, 2, data['anonymous'])
-#     #         ws.write(i+1, 3, data['type'])
-#     #         ws.write(i+1, 4, data['date'])
-#     #     wb.save('西刺代理ip.xls')
-#     #     print('录入西刺代理ip.xls-成功')
-#     #
-#     # def readXls(self, index):
-#     #     book = open_workbook('西刺代理ip.xls')
-#     #     sheet = book.sheet_by_index(0)
-#     #     row_con = sheet.row_values(index)  # 行的操作
-#     #     return row_con
-#
-# XiciProxy().getDataList();
-# # if __name__ == '__main__':
-# #     xiciProxy = XiciProxy()
-# #     xiciProxy.writeXls()
