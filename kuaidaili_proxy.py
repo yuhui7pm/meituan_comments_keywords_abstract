@@ -2,7 +2,6 @@
 ####  爬取"快代理"的"国内高匿代理IP"
 #######################################
 import requests
-import csv  #不使用这个
 from bs4 import BeautifulSoup
 from telnetlib import Telnet  # 这是用来验证IP是否可用
 import pandas as pd           # 将数据保存到csv中
@@ -11,8 +10,8 @@ class XiciProxy():
     def __init__(self):
         self.baseUrl = 'https://www.kuaidaili.com/free/inha/'
 
-    #获取西刺代理的有效ip,数目为num条
-    def getDataList(self, num=5):
+    #获取快代理的有效ip,数目为num条
+    def getDataList(self, num=10):
         print('爬取中...')
         #将浏览器的request header和response header的字段复制过来
         headers = {
@@ -78,13 +77,6 @@ class XiciProxy():
     def saveInCsv(self,ableList):
         csvUrl = 'D:\python\meituan\output_file\proxyIp.csv'
         pd.DataFrame(ableList).to_csv(csvUrl,encoding="utf_8_sig")  #避免保存的中文乱码
-        # csvFile = open('D:\python\meituan\output_file\proxyIp.csv', 'w')
-        # csvFile.truncate() #清空内容
-        # scvHeader = ['ip','anonymous','type','address','responseTime','finalVerifyTime']
-        # w = csv.DictWriter(csvFile, scvHeader)
-        # w.writeheader()
-        # w.writerows(ableList)
-        # csvFile.close()
 
 #调用方法,获取有效IP列表
 XiciProxy().getDataList()

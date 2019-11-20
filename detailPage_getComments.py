@@ -15,8 +15,8 @@ import pymongo
 #共用的数据
 
 #######################################################################################################################
-#数据到mongoDB
-class SaveComments():
+#操作mongoDB
+class mongoDB():
     def __init__(self,result):
         self.host = 'localhost'
         self.port = 27017
@@ -24,6 +24,7 @@ class SaveComments():
         self.formName = 'comments'
         self.result = result
 
+    #保存数据
     def save_to_Mongo(self):
         client = pymongo.MongoClient(host=self.host, port=self.port)  # 连接MongoDB
         db = client[self.databaseName]  # 选择数据库
@@ -34,6 +35,15 @@ class SaveComments():
                 print('存储到MongoDB成功', self.result)
         except Exception:
             print('存储到MongoDb失败', self.result)
+
+    #查询数据
+    def selectMongoDB(self):
+        client = pymongo.MongoClient(host=self.host, port=self.port)  # 连接MongoDB
+        db = client[self.databaseName]  # 选择数据库
+        collection = db[self.formName]  # 指定要操作的集合,表
+        # print('评论数据的总长度为：',collection.count_documents({}))
+        for x in collection.find():
+            print(x)
 #######################################################################################################################
 # 获取店铺的基本信息：名字，评论标签，页码
 class GetShopInformation():
@@ -110,23 +120,23 @@ class GetShopComments():
         if originJson:
             items = originJson.get('data').get('comments')
             for item in items:
-                comments = {}
-                comments['shopName'] = self.shopName
-                comments['username'] = item.get('userName')
-                comments['user-icon'] = item.get('userUrl')
-                comments['stars'] = item.get('star')
-                comments['user-comment'] = item.get('comment')
-                comments['user-comment-time'] = item.get('commentTime')
-                comments['user-comment-zan'] = item.get('zanCnt')
-                return comments
+                comments = {
+                    'shopName': self.shopName,
+                    'username': item.get('userName'),
+                    'user-icon': item.get('userUrl'),
+                    'stars': item.get('star'),
+                    'user-comment': item.get('comment'),
+                    'user-comment-time': item.get('commentTime'),
+                    'user-comment-zan': item.get('zanCnt')}
+                yield comments
 
     def get_comments(self):
         commentsData = [] #用于存储最终的结果，然后将结果保存到数据库中
         for page in range(1, self.maxPage):
-            print('page:',page)
             original_data = self.get_page(page)
-            result = self.parse_page(original_data)
-            commentsData.append(result)
+            results = self.parse_page(original_data)
+            for result in results:
+                commentsData.append(result)
         return commentsData
 #######################################################################################################################
 ##########################################################################
@@ -138,4 +148,6 @@ if __name__ == '__main__':
     # 获取店铺的所有评论
     commentsRes = GetShopComments(basicInfo).get_comments()
     # 将数据保存到mongoDB数据库中
-    SaveComments(commentsRes).save_to_Mongo()
+    mongoDB(commentsRes).save_to_Mongo()
+    # 查询mongoDB的数据
+    # mongoDB('').selectMongoDB()
