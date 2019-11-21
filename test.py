@@ -39,10 +39,10 @@ from urllib.request import ProxyHandler,build_opener
 # opener = build_opener(proxy_handler)
 # response = opener.open('http://httpbin.org/get')
 # print(response.read().decode('utf-8'))
-
 # https://www.kuaidaili.com/free/inha/
-proxy = '120.77.245.11:8080'
+proxy = '218.22.7.62:53281'
 chromeOptions = webdriver.ChromeOptions()
 chromeOptions.add_argument('--proxy-server=http://'+proxy)
 driver = webdriver.Chrome(options=chromeOptions)
-driver.get("https://www.meituan.com/meishi/41007600/")
+# driver.get("https://www.meituan.com/meishi/41007600/")
+driver.get("https://www.baidu.com")

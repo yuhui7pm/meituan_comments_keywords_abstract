@@ -11,25 +11,32 @@ from selenium import webdriver
 # from selenium.webdriver.support import expected_conditions as EC
 # from selenium.webdriver.support.wait import WebDriverWait
 import pymongo
+import pandas as pd
+
 #######################################################################################################################
 #共用的数据
 
 #######################################################################################################################
 #操作mongoDB
 class mongoDB():
-    def __init__(self,result):
+    def __init__(self,databaseName,formName,result=''):
         self.host = 'localhost'
         self.port = 27017
-        self.databaseName = 'meituan'
-        self.formName = 'comments'
+        self.databaseName = databaseName
+        self.formName = formName
         self.result = result
 
-    #保存数据
-    def save_to_Mongo(self):
+    #连接mongoDB
+    def mongoDB_connect(self):
         client = pymongo.MongoClient(host=self.host, port=self.port)  # 连接MongoDB
         db = client[self.databaseName]  # 选择数据库
         collection = db[self.formName]  # 指定要操作的集合,表
-        collection.delete_many({})  # 删除数据库内容
+        return collection
+
+    #保存数据
+    def save_to_Mongo(self):
+        collection = self.mongoDB_connect()
+        # collection.delete_many({})  # 删除数据库内容
         try:
             if collection.insert_many(self.result):
                 print('存储到MongoDB成功', self.result)
@@ -38,12 +45,15 @@ class mongoDB():
 
     #查询数据
     def selectMongoDB(self):
-        client = pymongo.MongoClient(host=self.host, port=self.port)  # 连接MongoDB
-        db = client[self.databaseName]  # 选择数据库
-        collection = db[self.formName]  # 指定要操作的集合,表
-        # print('评论数据的总长度为：',collection.count_documents({}))
+        collection = self.mongoDB_connect()
+        print('评论数据的总长度为：',collection.count_documents({}))
         for x in collection.find():
             print(x)
+
+    # 删除数据
+    def delete_database(self):
+        collection = self.mongoDB_connect()
+        collection.delete_many({})  # 删除数据库内容
 #######################################################################################################################
 # 获取店铺的基本信息：名字，评论标签，页码
 class GetShopInformation():
@@ -116,12 +126,13 @@ class GetShopComments():
             print('Error', e.args)
 
     # 从返回的json字符串中获取想要的字段
-    def parse_page(self,originJson):
+    def parse_page(self,originJson,page):
         if originJson:
             items = originJson.get('data').get('comments')
             for item in items:
                 comments = {
                     'shopName': self.shopName,
+                    'page':page,
                     'username': item.get('userName'),
                     'user-icon': item.get('userUrl'),
                     'stars': item.get('star'),
@@ -133,11 +144,39 @@ class GetShopComments():
     def get_comments(self):
         commentsData = [] #用于存储最终的结果，然后将结果保存到数据库中
         for page in range(1, self.maxPage):
+            print('我现在已经爬取到第'+str(page)+'页啦~')
             original_data = self.get_page(page)
-            results = self.parse_page(original_data)
+            results = self.parse_page(original_data,page)
             for result in results:
                 commentsData.append(result)
         return commentsData
+
+# 将数据保存到csv中
+class SaveDataInFiles():
+    def __init__(self, results=''):
+        # 需要保存的数据
+        self.results = results
+
+    # 出口文件
+    def saveResults(self):
+        self.saveInCsv()
+        # self.saveInTxt()
+
+    # 将结果ip保存到D:\python\meituan\output_file\comments.txt中
+    def saveInTxt(self):
+        txt = open('D:\python\meituan\output_file\comments.txt', 'w')
+        txt.truncate()  # 保存内容前先清空内容
+        for item in self.results:
+            itemStr = str(item)
+            txt.write(itemStr)
+            txt.write('\n')
+        txt.close()
+
+    # 将结果保存到D:\python\meituan\output_file\comments.csv中
+    def saveInCsv(self):
+        csvUrl = 'D:\python\meituan\output_file\comments.csv'
+        pd.DataFrame(self.results).to_csv(csvUrl, encoding="utf-8-sig")  # 避免保存的中文乱码
+
 #######################################################################################################################
 ##########################################################################
 ######################          主函数         ###########################
@@ -147,7 +186,22 @@ if __name__ == '__main__':
     basicInfo = GetShopInformation().get_basic_information()
     # 获取店铺的所有评论
     commentsRes = GetShopComments(basicInfo).get_comments()
-    # 将数据保存到mongoDB数据库中
-    mongoDB(commentsRes).save_to_Mongo()
+
+    # 清空数据库数据
+    # mongoDB('meituan', 'comments').delete_database()
+    # mongoDB('meituan', 'commentsTag').delete_database()
+
+    # 将评论数据保存到mongoDB数据库中
+    # mongoDB('meituan','comments',commentsRes).save_to_Mongo()
+
+    # 将店铺基本数据保存到mongoDB中
+    # tmp = []
+    # tmp.append(basicInfo)
+    # mongoDB('meituan','commentsTag',tmp).save_to_Mongo()
+
     # 查询mongoDB的数据
-    # mongoDB('').selectMongoDB()
+    # mongoDB('meituan','comments').selectMongoDB()
+    # mongoDB('meituan','commentsTag').selectMongoDB()
+
+    # 保存数据到files中
+    SaveDataInFiles(commentsRes).saveResults()
