@@ -12,10 +12,6 @@ from selenium import webdriver
 # from selenium.webdriver.support.wait import WebDriverWait
 import pymongo
 import pandas as pd
-
-#######################################################################################################################
-#共用的数据
-
 #######################################################################################################################
 #操作mongoDB
 class mongoDB():
@@ -78,7 +74,11 @@ class GetShopInformation():
         commentTags = commentTags.replace('\n', ' ', 30)
         # 获取最多的评论页码
         commentMaxPage = browser.find_element_by_css_selector('.pagination.clear li:nth-last-child(2)').text
-
+        #获取cookie
+        cookie = browser.get_cookies()
+        for item in cookie:
+            if item.get('name')=="uuid":
+                print(item.get('value'))
         # 关闭浏览器
         browser.quit()
 
@@ -144,13 +144,13 @@ class GetShopComments():
     def get_comments(self):
         commentsData = [] #用于存储最终的结果，然后将结果保存到数据库中
         for page in range(1, self.maxPage):
-            print('我现在已经爬取到第'+str(page)+'页啦~')
+            # print('我现在已经爬取到第'+str(page)+'页啦~')
             original_data = self.get_page(page)
             results = self.parse_page(original_data,page)
             for result in results:
                 commentsData.append(result)
         return commentsData
-
+#######################################################################################################################
 # 将数据保存到csv中
 class SaveDataInFiles():
     def __init__(self, results=''):
@@ -176,7 +176,6 @@ class SaveDataInFiles():
     def saveInCsv(self):
         csvUrl = 'D:\python\meituan\output_file\comments.csv'
         pd.DataFrame(self.results).to_csv(csvUrl, encoding="utf-8-sig")  # 避免保存的中文乱码
-
 #######################################################################################################################
 ##########################################################################
 ######################          主函数         ###########################
