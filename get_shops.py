@@ -1,42 +1,37 @@
-import requests
-import re  #用于正则表达式
+import base64, zlib
+import time
+import random
+import pandas as pd
+import os
+from config import SIGN_PARAM
 
-#获得城市名，uuid和商铺数目
-def getInfo():
-    """获取uuid"""
-    url = 'https://st.meituan.com/meishi/'  #汕头美食
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36"
+def encrypt(data):
+    """压缩编码"""
+    binary_data = zlib.compress(data.encode())#二进制压缩
+    base64_data = base64.b64encode(binary_data)     #base64编码
+    print('base64_data',base64_data)
+    return base64_data.decode()                     #返回utf-8编码的字符串
+
+def token():
+    """生成token参数"""
+    ts = int(time.time()*1000)  #获取当前的时间，单位ms
+    #brVD和brR为设备的宽高，浏览器的宽高等参数，可以使用事先准备的数据自行模拟
+    json_path = os.path.dirname(os.path.realpath(__file__))+'\\utils\\br.json'
+    df = pd.read_json(json_path)
+    brVD,brR_one,brR_two = df.iloc[random.randint(0,len(df)-1)]#iloc基于索引位来选取数据集
+    TOKEN_PARAM = {
+        "rId": 100900,
+        "ver": "1.0.6",
+        "ts": ts,  # 变量
+        "cts": ts + random.randint(100,120),# 经测,cts - ts 的差值大致在 90-130 之间
+        "brVD": eval(brVD),  # 变量
+        "brR": [eval(brR_one), eval(brR_two), 24, 24],
+        "bI": ["https://st.meituan.com/meishi/",""],  #从哪一页跳转到哪一页
+        "mT": [],
+        "kT": [],
+        "aT": [],
+        "tT": [],
+        "aM": "",
+        "sign": encrypt(SIGN_PARAM)
     }
-    res = requests.get(url, headers=headers).text
-    # findall(pattern, string, flags=0),返回string中所有与pattern相匹配的全部字串,r表示原生字符例：\n不表示换行。re.S表示作用域拓展到整个字符串，即包括换行符
-    uuid = re.findall(r'"uuid":"(.*?)"', res, re.S)[0]
-    city = re.findall(r'"chineseFullName":"(.*?)"',res,re.S)[0]
-    shopsNum = re.findall(r'"totalCounts":(\d+)',res,re.S)[0]
-    with open('./output_file/uuid_city_shopsNum.log', 'w',encoding="utf-8") as f:
-        print('uuid:', uuid,'\n','city:',city,'\n','shopsNum',shopsNum)
-        f.write('chrome_uuid:'+uuid+'\n'+'city:'+city+'\n'+'shopsNum:'+str(shopsNum))
-
-#获取一个城市所有店铺列表的poiInfos字段如下：
-def shopListsAjax():
-    basicUrl = 'https://st.meituan.com/meishi/api/poi/getPoiList?'
-    param = {
-        'cityName': '汕头',
-        'cateId' : 0,
-        'areaId' :0,
-        'sort':'',
-        'dinnerCountAttrId':'',
-        'page':'1',
-        'userId':'',
-        'uuid':'2255e41b-3773-4178-8eb7-612f440d2148',
-        'platform':1,
-        'partner':126,
-        'originUrl':'https%3A%2F%2Fst.meituan.com%2Fmeishi%2F',
-        'riskLevel': 1,
-        'optimusCode':10,
-        '_token':'eJx1T01vqkAU%2FS%2BzLZGZMgJj0oUiRZQWxIpC0wXgKF%2BiwsiIL%2B%2B%2Fv2niW3TR5Cbn456c3PsHNPYOjBCEBEIJdLQBI4AGcKACCbBWbIYaVjAiz5ioIpD%2B8IZQQxJImmAKRp8a1iWVDL%2B%2BDV%2FoT6QoWNJ18iU9KBb0GYv5ztgiAjLGzu1Ills2ONKcXeN6kJ6OsuBtlsvihF8CQDQcP0SDwPKB8QPZf%2F0mXhEVbX6oBaNzXhVruODFeJlRObebLp6XUZIZfbmAs5SGk5OfobYsFpEx0UxLOUz4qju7y16l2ZNH7u5tMkvYh%2FHmVlfT6x3KyGb8dJc7Tfdtd8mnl5CreniJV%2Bb2tSTTGsHQ8oswN%2Beca1bbR3R9d64l1klopEl0oKeL7pzv3iZsVvU6z4ytEb8H4%2FY2Pcdeue1vxu69GqM0NC47OzF9V%2Fc6x4qQHxd45uz3QWOhuooiFigbnqjX18CkzFJpqeXRPuirWcxfXsDffxUqlKY%3D'
-    }
-
-
-
-getInfo()
+    encrypt(TOKEN_PARAM)
