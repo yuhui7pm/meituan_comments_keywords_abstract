@@ -70,5 +70,5 @@ class SaveDataInFiles():
     def saveInCsv(self):
         # print('csv:',self.results,self.csv_url)
         csvUrl = self.csv_url
-        pd.DataFrame(self.results).to_csv(csvUrl, encoding="utf-8-sig")  # 避免保存的中文乱码
+        pd.DataFrame(self.results).to_csv(csvUrl,mode='a',encoding="utf-8-sig")  # 避免保存的中文乱码
         print('保存到csv文件中成功了')

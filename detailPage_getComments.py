@@ -1,97 +1,21 @@
+'''
+    根据数据库中汕头市外卖商铺信息，爬取所有商铺的评论信息
+'''
 # 爬取美团外卖评论 https://www.meituan.com/meishi/41007600/
-import requests;  # 模拟浏览器向服务器发出请求
-import urllib.parse;  # 定义了url的标准接口，实现url的各种抽取
-# from bs4 import BeautifulSoup;  # html和xml的解析库，用于从网页中提取数据
-# import pymongo  # 从mongoDB中读取数据
-# import pandas as pd
-# 解决动态渲染的问题
+import requests  # 模拟浏览器向服务器发出请求
+import math
+import urllib.parse  # 定义了url的标准接口，实现url的各种抽取
 from selenium import webdriver
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.common.keys import Keys
-# from selenium.webdriver.support import expected_conditions as EC
-# from selenium.webdriver.support.wait import WebDriverWait
-import pymongo
-import pandas as pd
+from save_data import MongoDB
+from save_data import SaveDataInFiles
+from config import ans
+from requests.adapters import HTTPAdapter
+
+
 #######################################################################################################################
-#操作mongoDB
-class mongoDB():
-    def __init__(self,databaseName,formName,result=''):
-        self.host = 'localhost'
-        self.port = 27017
-        self.databaseName = databaseName
-        self.formName = formName
-        self.result = result
-
-    #连接mongoDB
-    def mongoDB_connect(self):
-        client = pymongo.MongoClient(host=self.host, port=self.port)  # 连接MongoDB
-        db = client[self.databaseName]  # 选择数据库
-        collection = db[self.formName]  # 指定要操作的集合,表
-        return collection
-
-    #保存数据
-    def save_to_Mongo(self):
-        collection = self.mongoDB_connect()
-        # collection.delete_many({})  # 删除数据库内容
-        try:
-            if collection.insert_many(self.result):
-                print('存储到MongoDB成功', self.result)
-        except Exception:
-            print('存储到MongoDb失败', self.result)
-
-    #查询数据
-    def selectMongoDB(self):
-        collection = self.mongoDB_connect()
-        print('评论数据的总长度为：',collection.count_documents({}))
-        for x in collection.find():
-            print(x)
-
-    # 删除数据
-    def delete_database(self):
-        collection = self.mongoDB_connect()
-        collection.delete_many({})  # 删除数据库内容
-#######################################################################################################################
-# 获取店铺的基本信息：名字，评论标签，页码
-class GetShopInformation():
-    # 定义一些初始化的数据
-    def __init__(self):
-        self.shopUrl = 'https://www.meituan.com/meishi/41007600/'
-
-    # 获取名字，评论标签，页码
-    def get_basic_information(self):
-        # 访问美团
-        chrome_options = webdriver.ChromeOptions()
-        browser = webdriver.Chrome(options=chrome_options)
-        browser.get(self.shopUrl)
-        browser.implicitly_wait(10)  # 隐式等待
-
-        # 获取商铺名字
-        shopName = browser.find_element_by_class_name('details').find_element_by_class_name('name')
-        shopName = shopName.text.replace('食品安全档案', '')
-        shopName = shopName.replace('\n', '', 3)
-        # 获取已经分类好的点评标签
-        commentTags = browser.find_element_by_css_selector('.com-cont .tags.clear').text
-        commentTags = commentTags.replace('\n', ' ', 30)
-        # 获取最多的评论页码
-        commentMaxPage = browser.find_element_by_css_selector('.pagination.clear li:nth-last-child(2)').text
-        #获取cookie
-        cookie = browser.get_cookies()
-        for item in cookie:
-            if item.get('name')=="uuid":
-                print(item.get('value'))
-        # 关闭浏览器
-        browser.quit()
-
-        # 赋值，并返回结果
-        return {
-            'shopName': shopName,
-            'commentTags': commentTags,
-            'commentMaxPage': commentMaxPage,
-        }
-#######################################################################################################################
-# 定义类获取评论数据
+# 定义类获取商铺评论标签和所有评论
 class GetShopComments():
-    def __init__(self, shopBasicInfo):
+    def __init__(self, shopBasicInfo, uuid, shop_num=''):
         self.comments_ajax_url = "https://www.meituan.com/meishi/api/poi/getMerchantComment?"
         self.ajax_headers = {
             'Host': 'www.meituan.com',
@@ -100,107 +24,106 @@ class GetShopComments():
             'X-Requested-With': 'XMLHttpRequest',
         }
         # 前面GetShopInformation的类中传递过来的最大页数
-        self.maxPage = int(shopBasicInfo['commentMaxPage'])
-        self.shopName = shopBasicInfo['shopName']
+        self.maxPage = math.ceil(shopBasicInfo['allCommentNum'] / 10)
+        self.shopName = shopBasicInfo['title']
+        self.poiId = shopBasicInfo['poiId']
+        self.uuid = uuid['uuid']
+        # self.uuid = uuid
+        self.shop_num = shop_num
 
-    def get_page(self, items):
+
+    # 获取每个店铺页面上的所有数据(json格式)，标签+评论
+    def get_comments_in_page(self, items):
         parms = {
-            'uuid': '4344eb25-c171-4c19-9d82-278ba5f01224',
+            'uuid': self.uuid,
             'platform': '1',
             'partner': '126',
-            'originUrl': 'https%3A%2F%2Fwww.meituan.com%2Fmeishi%2F41007600%2F',
+            'originUrl': 'https%3A%2F%2Fwww.meituan.com%2Fmeishi%2F' + str(self.poiId) + '%2F',
             'riskLevel': '1',
             'optimusCode': '10',
-            'id': '41007600',
+            'id': self.poiId,
             'userId': '',
             'offset': items,
             'pageSize': '10',
             'sortType': '1',
         }
         url = self.comments_ajax_url + urllib.parse.urlencode(parms)
+        # 连接超时，重新连接
+        request = requests.Session()
+        request.mount('http://', HTTPAdapter(max_retries=3))
+        request.mount('https://', HTTPAdapter(max_retries=3))
         try:
-            response = requests.get(url, headers=self.ajax_headers)
+            response = request.get(url, headers=self.ajax_headers,timeout=10)
             if response.status_code == 200:
                 return response.json()
-        except requests.ConnectionError as e:
+        # except requests.ConnectionError as e:
+        except requests.exceptions.Timeout as e:
             print('Error', e.args)
 
-    # 从返回的json字符串中获取想要的字段
-    def parse_page(self,originJson,page):
+    # 解析json数据，并获取评论数据
+    def parse_comments_in_page(self, originJson, page):
         if originJson:
             items = originJson.get('data').get('comments')
-            for item in items:
-                comments = {
-                    'shopName': self.shopName,
-                    'page':page,
-                    'username': item.get('userName'),
-                    'user-icon': item.get('userUrl'),
-                    'stars': item.get('star'),
-                    'user-comment': item.get('comment'),
-                    'user-comment-time': item.get('commentTime'),
-                    'user-comment-zan': item.get('zanCnt')}
-                yield comments
+            if items:
+                for item in items:
+                    comments = {
+                        'shopName': self.shopName,
+                        'page': page,
+                        'username': item.get('userName'),
+                        'user-icon': item.get('userUrl'),
+                        'stars': item.get('star'),
+                        'user-comment': item.get('comment'),
+                        'user-comment-time': item.get('commentTime'),
+                        'user-comment-zan': item.get('zanCnt')}
+                    yield comments
 
+    # 解析json数据，并获取标签评论数据
+    def parse_comments_tags(self):
+        if self.maxPage > 0:
+            original_data = self.get_comments_in_page(1)
+            if original_data:
+                tags = original_data.get('data').get('tags')
+                if tags:
+                    for item in tags:
+                        item['poiId'] = self.poiId
+                        item['shopName'] = self.shopName
+                    return tags
+    # 评论数据的入口和出口
     def get_comments(self):
-        commentsData = [] #用于存储最终的结果，然后将结果保存到数据库中
-        for page in range(1, self.maxPage):
-            # print('我现在已经爬取到第'+str(page)+'页啦~')
-            original_data = self.get_page(page)
-            results = self.parse_page(original_data,page)
-            for result in results:
-                commentsData.append(result)
-        return commentsData
+        commentsData = []  # 用于存储最终的结果，然后将结果保存到数据库中
+        if self.maxPage > 0:
+            for page in range(1, self.maxPage + 1):
+                print('我现在已经爬取到第' + str(shop_num) + '家店铺的第' + str(page) + '页啦~')
+                original_data = self.get_comments_in_page(page)
+                results = self.parse_comments_in_page(original_data, page)
+                for result in results:
+                    commentsData.append(result)
+            return commentsData
+
+    # 评论标签数据
+
+
 #######################################################################################################################
-# 将数据保存到csv中
-class SaveDataInFiles():
-    def __init__(self, results=''):
-        # 需要保存的数据
-        self.results = results
 
-    # 出口文件
-    def saveResults(self):
-        self.saveInCsv()
-        # self.saveInTxt()
-
-    # 将结果ip保存到D:\python\meituan\output_file\comments.txt中
-    def saveInTxt(self):
-        txt = open('D:\python\meituan\output_file\comments.txt', 'w')
-        txt.truncate()  # 保存内容前先清空内容
-        for item in self.results:
-            itemStr = str(item)
-            txt.write(itemStr)
-            txt.write('\n')
-        txt.close()
-
-    # 将结果保存到D:\python\meituan\output_file\comments.csv中
-    def saveInCsv(self):
-        csvUrl = 'D:\python\meituan\output_file\comments.csv'
-        pd.DataFrame(self.results).to_csv(csvUrl, encoding="utf-8-sig")  # 避免保存的中文乱码
-#######################################################################################################################
-##########################################################################
-######################          主函数         ###########################
-##########################################################################
 if __name__ == '__main__':
-    # 获取店铺的基本信息：名字，评论标签，最大页码
-    basicInfo = GetShopInformation().get_basic_information()
-    # 获取店铺的所有评论
-    commentsRes = GetShopComments(basicInfo).get_comments()
-
-    # 清空数据库数据
-    # mongoDB('meituan', 'comments').delete_database()
-    # mongoDB('meituan', 'commentsTag').delete_database()
-
-    # 将评论数据保存到mongoDB数据库中
-    # mongoDB('meituan','comments',commentsRes).save_to_Mongo()
-
-    # 将店铺基本数据保存到mongoDB中
-    # tmp = []
-    # tmp.append(basicInfo)
-    # mongoDB('meituan','commentsTag',tmp).save_to_Mongo()
-
-    # 查询mongoDB的数据
-    # mongoDB('meituan','comments').selectMongoDB()
-    # mongoDB('meituan','commentsTag').selectMongoDB()
-
-    # 保存数据到files中
-    SaveDataInFiles(commentsRes).saveResults()
+    shop_num = 315  # 用于统计爬到哪一家店铺
+    # 开启新数据库用于保存评论数据
+    tags_collection = MongoDB('shops_tags', '', '').collect_database()  # 连接数据库
+    comments_collection = MongoDB('shops_comments', '', '').collect_database()  # 连接数据库
+    # 查看数据库内容
+    # MongoDB('shops_tags',tags_collection).selectMongoDB()
+    # 清空数据库
+    # MongoDB('shops_tags', tags_collection).delete_database()
+    # MongoDB('shops_comments', comments_collection).delete_database()
+    # 获取前面数据库中保存的商家数据
+    collection = MongoDB('shops_info', '', '').collect_database()  # 连接数据库
+    shops = collection.find({}, {"poiId": 1, "title": 1, "allCommentNum": 1})  # 只输出id和title字段，第一个参数为查询条件，空代表查询所有
+    shops = list(shops)  # 将游标转换成数组
+    for items in shops[315:]:
+        shop_num = shop_num + 1  # 用于统计爬到哪一家店铺
+        commentsRes = GetShopComments(items, ans, shop_num).get_comments()  # 获取店铺的所有评论
+        tagsRes = GetShopComments(items, ans).parse_comments_tags()  # 获取评论标签
+        MongoDB('shops_tags', tags_collection, tagsRes).save_to_Mongo()  # 保存评论标签数据
+        MongoDB('shops_comments', comments_collection, commentsRes).save_to_Mongo()  # 保存评论数据
+        SaveDataInFiles('D:\python\meituan\output_file\shop_comments.csv', '', commentsRes).saveInCsv()  # 保存评论数据到csv文件中
+        SaveDataInFiles('D:\python\meituan\output_file\shop_tags.csv', '', tagsRes).saveInCsv()  # 保存评论数据到csv文件中
